@@ -1,0 +1,1009 @@
+<!doctype html>
+<html class="no-js" lang='en'>
+
+<head>
+	<meta charset="UTF-8">
+	<title>Stop the Pigeon</title>
+	<script src="jquery.js"></script>
+	<!--<script src="hammer.min.js"></script>-->
+	<!--<script src="https://maps.googleapis.com/maps/api/js?v=3.exp&sensor=falsesigned_in=true"></script>-->
+	<style>
+		body {
+			margin: 0;
+			background-color: #272822;
+		}
+
+		#container {
+			background: url(images/background.png) no-repeat;
+			background-size: cover
+		}
+
+		.pigeon {
+			z-index: 5;
+			width: 53px;
+			height: 55px;
+			background: url(images/pigeon.gif) no-repeat;
+			position: absolute;
+		}
+
+		.evil {
+			background: url(images/pigeon_evil.gif) no-repeat;
+		}
+
+		.explode {
+			background: url(images/explode.gif) no-repeat;
+		}
+
+		.flip {
+			-moz-transform: scaleX(-1);
+			-webkit-transform: scaleX(-1);
+			-o-transform: scaleX(-1);
+			transform: scaleX(-1);
+			-ms-filter: fliph;
+			/*IE*/
+			filter: fliph;
+			/*IE*/
+		}
+
+		#drayson {
+			z-index: 4;
+			width: 146px;
+			height: 117px;
+			background: url(images/drayson.png) no-repeat;
+			position: absolute;
+		}
+
+		.tag {
+			z-index: 5;
+			width: 53px;
+			height: 27px;
+			background: url(images/tag.png) no-repeat;
+			position: absolute;
+		}
+
+		.sensor {
+			z-index: 3;
+			width: 16px;
+			height: 26px;
+			background: url(images/sensor.png) no-repeat;
+			position: absolute;
+		}
+
+		.vw {
+			z-index: 4;
+			width: 80px;
+			height: 80px;
+			background: url(images/vw.gif) no-repeat;
+			position: absolute;
+			background-size: 100%;
+		}
+
+		.pollution {
+			z-index: 3;
+			width: 30px;
+			height: 23px;
+			background: url(images/pollution.png) no-repeat;
+			position: absolute;
+		}
+
+		.damage:after {
+			display: block;
+			content: "";
+			width: 30px;
+			height: 30px;
+			background: transparent url(images/fire.gif) no-repeat;
+			position: relative;
+			top: -2px;
+			left: 6px;
+		}
+
+		.damaged:before {
+			display: block;
+			content: "";
+			width: 30px;
+			height: 30px;
+			background: transparent url(images/fire.gif) no-repeat;
+			position: relative;
+			top: -2px;
+			left: 6px;
+		}
+
+		.destroyed {
+			background: url(images/explode_large.gif) no-repeat !important;
+			background-size: 146px 117px;
+		}
+
+		#game-over {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			height: 40px;
+			margin-top: -120px;
+			width: 200px;
+			margin-left: -100px;
+			font-size: 80px;
+			font-weight: bold;
+			font-family: verdana, arial, sans-serif;
+			z-index: 10;
+		}
+
+		#game-won {
+			background: transparent url(images/DavidMuttley.png) no-repeat;
+			width: 227px;
+			height: 314px;
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			margin-top: -185px;
+			margin-left: -113px;
+
+			-ms-transform: rotate(-2deg);
+			/* IE 9 */
+			-webkit-transform: rotate(-2deg);
+			/* Safari */
+			transform: rotate(-2deg);
+
+			-webkit-animation: wobbleLeft 0.2s ease-in-out infinite;
+			-moz-animation: wobbleLeft 0.2s ease-in-out infinite;
+			animation: wobbleLeft 0.2s ease-in-out infinite;
+			-webkit-transform-origin: 50% 0%;
+			-moz-transform-origin: 50% 0%;
+			-o-transform-origin: 50% 0%;
+			transform-origin: 50% 0%;
+		}
+
+		#won-text {
+			font-size: 40px;
+			font-weight: bold;
+			font-family: verdana, arial, sans-serif;
+			z-index: 10;
+			text-align: center;
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			margin-top: 144px;
+			margin-left: -113px;
+		}
+
+		#replay {
+			font-size: 30px;
+			font-weight: bold;
+			font-family: verdana, arial, sans-serif;
+			z-index: 10;
+			text-align: center;
+			position: absolute;
+			top: 90%;
+			left: 50%;
+			//margin-top: 110px;
+			margin-left: -40px;
+			font-style: italic;
+			text-decoration: none;
+		}
+
+		@-moz-keyframes wobbleLeft {
+			50% {
+				-moz-transform: rotate(2deg);
+			}
+		}
+
+		@-webkit-keyframes wobbleLeft {
+			50% {
+				-webkit-transform: rotate(2deg);
+			}
+		}
+
+		@keyframes wobbleLeft {
+			50% {
+				-webkit-transform: rotate(2deg);
+				transform: rotate(2deg);
+			}
+		}
+	</style>
+</head>
+
+<body>
+	<div id="container">
+		<div id="map-canvas"></div>
+	</div>
+
+	<script>
+
+		/***************************/
+		// variables
+		var internalMargin = 10;
+		var bottomMargin = 80;
+		var numPigeons = 10;
+		var pigeons = [];
+		var numEvilPigeons = 6;
+		var theLord;
+		var audio;
+		var vwInterval;
+		var planeAudio = new Audio('audio/plane.mp3');
+		planeAudio.loop = true;
+		planeAudio.play();
+
+		// /var myElement = document.getElementById('container');
+		//var mc = new Hammer(document);
+
+		/***************************/
+
+		function initMap() {
+
+			var greyScale = [];/*[{"featureType":"landscape","stylers":[{"saturation":-100},{"lightness":65},{"visibility":"on"}]},{"featureType":"poi","stylers":[{"saturation":-100},{"lightness":51},{"visibility":"simplified"}]},{"featureType":"road.highway","stylers":[{"saturation":-100},{"visibility":"simplified"}]},{"featureType":"road.arterial","stylers":[{"saturation":-100},{"lightness":30},{"visibility":"on"}]},{"featureType":"road.local","stylers":[{"saturation":-100},{"lightness":40},{"visibility":"on"}]},{"featureType":"transit","stylers":[{"saturation":-100},{"visibility":"simplified"}]},{"featureType":"administrative.province","stylers":[{"visibility":"off"}]},{"featureType":"water","elementType":"labels","stylers":[{"visibility":"on"},{"lightness":-25},{"saturation":-100}]},{"featureType":"water","elementType":"geometry","stylers":[{"hue":"#ffff00"},{"lightness":-25},{"saturation":-97}]}];*/
+
+			var map = new google.maps.Map(document.getElementById('map-canvas'), {
+				center: new google.maps.LatLng(51.483667, -0.1215215),
+				zoom: 10,
+				minZoom: 8,
+				maxZoom: 13,
+				mapTypeControlOptions: {
+					mapTypeIds: []
+				},
+				styles: greyScale
+			});
+
+			var styledMapType = new google.maps.StyledMapType(greyScale, { name: 'Grey Scale' });
+			map.mapTypes.set('map_style', styledMapType);
+
+			google.maps.event.addListenerOnce(map, 'tilesloaded', function () {
+				// do something only the first time the map is loaded
+
+			});
+		}
+
+		function sizeMap() {
+			var mapHeight = $(window).height();
+			$('#map-canvas').height(mapHeight);
+		}
+
+		/*********************/
+
+		function createPigeon() {
+			var flipClass = makeRandomDecision() ? " flip rtl" : " ltr";
+			$("#container").append("<div class='pigeon" + flipClass + "'></div>");
+			var pigeon = $("#container .pigeon:last-of-type");
+			var top = getRandomBetween(internalMargin, $(window).height() - pigeon.height() - internalMargin - bottomMargin);
+			var left = getRandomBetween(internalMargin, $(window).width() - pigeon.width() - internalMargin);
+			pigeon.css("top", top + "px");
+			pigeon.css("left", left + "px");
+			return pigeon;
+		}
+
+		function makeRandomDecision() {
+			if (getRandomBetween(0, 1) >= 0.5) {
+				return true;
+			}
+
+			return false;
+		}
+
+		function getRandomBetween(min, max) {
+			return Math.floor(Math.random() * (max - min + 1) + min)
+		}
+
+		function explodePigeon(pigeon) {
+			pigeon.addClass("explode");
+
+			setTimeout(function () {
+				pigeon.remove();
+			}, 400);
+
+		}
+
+		function movePigeon(pigeon) {
+			var moveStepSize = 2;
+			var left = pigeon.css("left");
+			left = Number(left.substring(0, left.length - 2));
+
+			if (left > $(window).width() - pigeon.width() - internalMargin) {
+				pigeon.removeClass("ltf").addClass("flip").addClass("rtl");
+			} else if (left < internalMargin) {
+				pigeon.removeClass("flip").removeClass("rtl").addClass("ltr");
+			}
+
+			if (pigeon.hasClass("rtl")) {
+				left = (left - moveStepSize);
+			} else {
+				left = (left + moveStepSize);
+			}
+
+			pigeon.css("left", left + "px");
+
+			var top = pigeon.css("top");
+			top = Number(top.substring(0, top.length - 2));
+			var movementTop = makeRandomDecision() ? moveStepSize : -moveStepSize;
+
+			if ((top + movementTop > $(window).height() - pigeon.height() - internalMargin - bottomMargin)
+				|| (top + movementTop < internalMargin)) {
+				movementTop = -movementTop;
+			}
+
+			pigeon.css("top", (top + movementTop) + "px");
+		}
+
+		function makeEvil(pigeon) {
+			pigeon.element.addClass("evil");
+
+			pigeon.evilInterval = setInterval(function () {
+				dropSensor(pigeon.element);
+			}, getRandomBetween(2500, 4000));
+
+		}
+
+		function killPigeon(pigeon) {
+			new Audio('audio/pigeon.mp3').play();
+			explodePigeon(pigeon.element);
+			clearInterval(pigeon.interval);
+			clearInterval(pigeon.evilInterval);
+		}
+
+		function initPigeon() {
+			var pigeon = createPigeon();
+
+			var pigeonInterval = setInterval(function () {
+				movePigeon(pigeon);
+			}, 20);
+
+			return { element: pigeon, interval: pigeonInterval };
+		}
+
+		/*********************/
+
+		function createSensor(pigeon) {
+			$("#container").append("<div class='sensor'></div>");
+			var sensor = $("#container .sensor:last-of-type");
+
+			var top = pigeon.css("top");
+			top = Number(top.substring(0, top.length - 2));
+			top += pigeon.height();
+
+			var left = pigeon.css("left");
+			left = Number(left.substring(0, left.length - 2));
+			left += pigeon.width() / 2;
+
+			sensor.css("top", top + "px");
+			sensor.css("left", left + "px");
+			return sensor;
+		}
+
+		function moveSensor(sensor, sensorInterval) {
+
+			var moveStepSize = 2;
+
+			var top = sensor.css("top");
+			top = Number(top.substring(0, top.length - 2));
+
+			if (top > $(window).height() - internalMargin - sensor.height()) {
+				sensor.remove();
+				clearInterval(sensorInterval);
+				return;
+			}
+
+			sensor.css("top", (top + moveStepSize) + "px");
+
+			var left = sensor.css("left");
+			left = Number(left.substring(0, left.length - 2));
+
+			// has it hit Drayson
+			if (hasSensorHitDrayson(left, top)) {
+				sensor.remove();
+				clearInterval(sensorInterval);
+				damageDrayson();
+			}
+
+			// has sensor hit vw van?
+			if (hasSensorHitVW(left, top)) {
+				sensor.remove();
+				clearInterval(sensorInterval);
+			}
+		}
+
+		function hasSensorHitDrayson(sensorLeft, sensorTop) {
+			var draysonLeft = theLord.css("left");
+			draysonLeft = Number(draysonLeft.substring(0, draysonLeft.length - 2));
+
+			var draysonTop = theLord.css("top");
+			draysonTop = Number(draysonTop.substring(0, draysonTop.length - 2));
+
+			if (sensorLeft >= draysonLeft
+				&& sensorLeft <= draysonLeft + theLord.width()
+				&& sensorTop >= draysonTop
+				&& sensorTop <= draysonTop + theLord.height()) {
+
+				return true;
+			}
+
+			return false;
+		}
+
+		function hasSensorHitVW(sensorLeft, sensorTop) {
+			var vws = $(".vw");
+
+			for (var i = 0; i < vws.length; i++) {
+				var vw = $(vws[i]);
+				var vwLeft = vw.css("left");
+				vwLeft = Number(vwLeft.substring(0, vwLeft.length - 2));
+
+				var vwTop = vw.css("top");
+				vwTop = Number(vwTop.substring(0, vwTop.length - 2));
+
+				if (sensorLeft >= vwLeft
+					&& sensorLeft <= vwLeft + vw.width()
+					&& sensorTop >= vwTop
+					&& sensorTop <= vwTop + vw.height()) {
+
+					// RELEASE POLLUTION
+					releasePollution(vw)
+					return true;
+				}
+			}
+
+			return false;
+		}
+
+		function dropSensor(pigeon) {
+			var sensor = createSensor(pigeon);
+
+			var sensorInterval = setInterval(function () {
+				moveSensor(sensor, sensorInterval);
+			}, 5);
+
+			// setTimeout(function(){
+			// 	sensor.remove();
+			//              clearInterval(sensorInterval);
+			//          }, 750);
+		}
+
+		/*********************/
+
+		function createDrayson() {
+			$("#container").append("<div id='drayson' class='rtl'></div>");
+			var drayson = $("#drayson");
+			drayson.css("top", $(window).height() / 2 - drayson.height() / 2 + "px");
+			drayson.css("left", $(window).width() - drayson.width() - internalMargin - bottomMargin + "px");
+			return drayson;
+		}
+
+		function moveDraysonSideways(drayson, moveStepSize) {
+
+			var left = drayson.css("left");
+			left = Number(left.substring(0, left.length - 2));
+
+
+			if (drayson.hasClass("rtl")) {
+				left = (left - moveStepSize);
+			} else {
+				left = (left + moveStepSize);
+			}
+
+			// if outside window area, then return
+			if ((left < $(window).width() - drayson.width() - internalMargin
+				&& drayson.hasClass("ltr"))
+				|| (left > internalMargin && drayson.hasClass("rtl"))) {
+				drayson.css("left", left + "px");
+			} else {
+				//moveMap();
+				return;
+			}
+
+			var top = drayson.css("top");
+			top = Number(top.substring(0, top.length - 2));
+
+			// check whether drayson has hit a pigeon
+			for (var i = 0; i < pigeons.length; i++) {
+				var pigeon = pigeons[i];
+				if (!pigeon.element.hasClass("evil") && hasDraysonHitPigeon(left, left + drayson.width(), top, top + drayson.height(), pigeon.element)) {
+					// make pigeon evil
+					makeEvil(pigeon);
+				}
+			}
+		}
+
+		function hasDraysonHitPigeon(thingLeft, thingRight, thingTop, thingBottom, pigeon) {
+			var pigeonLeft = pigeon.css("left");
+			pigeonLeft = Number(pigeonLeft.substring(0, pigeonLeft.length - 2));
+
+			var pigeonTop = pigeon.css("top");
+			pigeonTop = Number(pigeonTop.substring(0, pigeonTop.length - 2));
+
+			if (thingLeft <= pigeonLeft && thingRight >= pigeonLeft
+				&& thingTop <= pigeonTop && thingBottom >= pigeonTop) {
+				return true;
+			}
+
+			return false;
+		}
+
+		function moveDraysonUpDown(drayson, downNotUp) {
+			var moveStepSize = 10;
+
+			var top = drayson.css("top");
+			top = Number(top.substring(0, top.length - 2));
+
+			// if outside window area, then return
+			// TODO move Gmaps
+			if (top < internalMargin && !downNotUp) {
+				// hit top
+				//moveMap();
+				return;
+			} else if (top > $(window).height() - drayson.height() - internalMargin - bottomMargin && downNotUp) {
+				// hit bottom
+				//moveMap();
+				return;
+			}
+
+			var movementTop = downNotUp ? moveStepSize : -moveStepSize;
+
+			drayson.css("top", (top + movementTop) + "px");
+		}
+
+		function addUserControls(drayson) {
+			var keyMap = {};
+			$(window).off("keydown").on("keydown", function (e) {
+				startAudio();
+				
+				e = e || event;
+				keyMap[e.keyCode] = true;
+				/*insert conditional here*/
+
+				if (keyMap[38]) {
+					// up
+					moveDraysonUpDown(drayson, false);
+				}
+
+				if (keyMap[40]) {
+					// down
+					moveDraysonUpDown(drayson, true);
+				}
+
+				if (keyMap[37]) {
+					// left
+					drayson.removeClass("flip").removeClass("ltr").addClass("rtl");
+					moveDraysonSideways(drayson, 10);
+				}
+
+				if (keyMap[39]) {
+					// right
+					drayson.removeClass("rtl").addClass("ltr").addClass("flip");
+					moveDraysonSideways(drayson, 10);
+				}
+
+				if (keyMap[32]) {
+					// shoot single Tag at a time
+					if (!$(".tag").length > 0) {
+						fireTag(drayson);
+					}
+				}
+			});
+
+			$(window).off("keyup").on("keyup", function (e) {
+				e = e || event;
+				keyMap[e.keyCode] = false;
+			});
+
+			// var myElement = document.getElementById('container');
+			// var mc = new Hammer.Manager(myElement);
+
+			// mc.off("tap press").on("tap press", function(e) {
+			// 	if (!$(".tag").length > 0) {
+			// 		fireTag(drayson);
+			// 	}
+			// 	e.preventDefault();
+			// });
+
+			// mc.off("pinch").on("pinch", function(e){
+			// 	// down
+			// 	moveDraysonUpDown(drayson, true);
+			// 	e.preventDefault();
+			// });
+
+			// mc.off("rotate").on("rotate", function(e){
+			// 	// up
+			// 	moveDraysonUpDown(drayson, false);
+			// 	e.preventDefault();
+			// });
+
+			// mc.off("swipeleft").on("swipeleft", function(e){
+			// 	console.log("swipeleft");
+			// 	drayson.removeClass("flip").removeClass("ltr").addClass("rtl");
+			// 	moveDraysonSideways(drayson, 10);
+			// 	e.preventDefault();
+			// });
+
+			// mc.off("swiperight").on("swiperight", function(e){
+			// 	drayson.removeClass("rtl").addClass("ltr").addClass("flip");
+			// 	moveDraysonSideways(drayson, 10);
+			// 	e.preventDefault();
+			// });
+
+		}
+
+		function damageDrayson() {
+
+			// create fire on Drayson
+			if (!theLord.hasClass("damage")) {
+				new Audio('audio/damage.mp3').play();
+				theLord.addClass("damage");
+				return;
+			} else if (!theLord.hasClass("damaged")) {
+				new Audio('audio/damage.mp3').play();
+				theLord.addClass("damaged");
+				return;
+			}
+
+			new Audio('audio/explosion.mp3').play();
+			theLord.addClass("destroyed");
+			console.log("Game over");
+
+			setTimeout(function () {
+				theLord.remove();
+				gameOver();
+			}, 1000);
+			// game over
+		}
+
+		function initDrayson() {
+			var drayson = createDrayson();
+
+			planeAudio.play();
+
+			var draysonInterval = setInterval(function () {
+				moveDraysonSideways(drayson, 0.25);
+			}, 5);
+
+			addUserControls(drayson);
+
+			return drayson;
+		}
+
+		/*********************/
+
+
+		function createTag(drayson) {
+			var flipClass = drayson.hasClass("flip") ? " ltr" : " flip rtl";
+			$("#container").append("<div class='tag" + flipClass + "'></div>");
+			var tag = $("#container .tag:last-of-type");
+
+			var top = drayson.css("top");
+			top = Number(top.substring(0, top.length - 2));
+			top += drayson.height() / 2;
+
+			var left = drayson.css("left");
+			left = Number(left.substring(0, left.length - 2));
+
+			if (drayson.hasClass("rtl")) {
+				left -= tag.width() - 2;
+			} else {
+				left += drayson.width() + 2;
+			}
+
+			tag.css("top", top + "px");
+			tag.css("left", left + "px");
+			return tag;
+		}
+
+		function moveTag(tag, tagInterval) {
+
+			var moveStepSize = 4;
+			var left = tag.css("left");
+			left = Number(left.substring(0, left.length - 2));
+
+			if (tag.hasClass("rtl")) {
+				left = (left - moveStepSize);
+			} else {
+				left = (left + moveStepSize);
+			}
+
+			if (left > $(window).width() - tag.width()
+				|| left < 0) {
+				tag.remove();
+				clearInterval(tagInterval);
+				return;
+			}
+
+			tag.css("left", left + "px");
+
+			if (pigeons.length == 0) {
+				// all pigeons already dead
+				return;
+			}
+
+			var top = tag.css("top");
+			top = Number(top.substring(0, top.length - 2));
+
+			// has it hit a pigeon
+			for (var i = 0; i < pigeons.length; i++) {
+				var pigeon = pigeons[i];
+
+				if (hasTagHitPigeon(left, top, pigeon.element)) {
+					// remove Tag
+					tag.remove();
+					clearInterval(tagInterval);
+					// kill pigeon
+					killPigeon(pigeon);
+					pigeons.splice(i, 1);
+					break;
+				}
+			}
+
+			// won?
+			if (pigeons.length === 0) {
+				gameWon();
+			}
+		}
+
+		function hasTagHitPigeon(thingLeft, thingTop, pigeon) {
+			var pigeonLeft = pigeon.css("left");
+			pigeonLeft = Number(pigeonLeft.substring(0, pigeonLeft.length - 2));
+
+			var pigeonTop = pigeon.css("top");
+			pigeonTop = Number(pigeonTop.substring(0, pigeonTop.length - 2));
+
+			if (thingLeft >= pigeonLeft
+				&& thingLeft <= pigeonLeft + pigeon.width()
+				&& thingTop >= pigeonTop
+				&& thingTop <= pigeonTop + pigeon.height()) {
+
+				return true;
+			}
+
+			return false;
+		}
+
+
+
+		function fireTag(drayson) {
+			var tag = createTag(drayson);
+
+			new Audio('audio/shoot.mp3').play();
+
+			var tagInterval = setInterval(function () {
+				moveTag(tag, tagInterval);
+			}, 5);
+
+			setTimeout(function () {
+				tag.remove();
+				clearInterval(tagInterval);
+			}, 800);
+		}
+
+		/*********************/
+
+		function createVW() {
+			var flipClass = makeRandomDecision() ? " flip rtl" : " ltr";
+			$("#container").append("<div class='vw" + flipClass + "'></div>");
+			var vw = $("#container .vw:last-of-type");
+
+			var top = $(window).height() - vw.height() - 2;
+			var left = vw.hasClass("rtl") ? $(window).width() - vw.width() : 0;
+
+			vw.css("top", top + "px");
+			vw.css("left", left + "px");
+
+			return vw;
+		}
+
+		function moveVW(vw, vwMoveInterval) {
+			var moveStepSize = 4;
+			var left = vw.css("left");
+			left = Number(left.substring(0, left.length - 2));
+
+			if (vw.hasClass("rtl")) {
+				left = (left - moveStepSize);
+			} else {
+				left = (left + moveStepSize);
+			}
+
+			if (left > $(window).width() - vw.width()
+				|| left < 0) {
+				vw.remove();
+				clearInterval(vwMoveInterval);
+				vwAudio.pause();
+				return;
+			}
+
+			vw.css("left", left + "px");
+		}
+
+		var vwAudio = new Audio('audio/vw.mp3');
+		vwAudio.loop = true;
+
+		function initVW() {
+			var vw = createVW();
+
+			vwAudio.play();
+
+			var vwMoveInterval = setInterval(function () {
+				moveVW(vw, vwMoveInterval, vwAudio);
+			}, 15);
+
+			setTimeout(function () {
+				releasePollution(vw);
+			}, getRandomBetween(100, 3000));
+		}
+
+		/*********************/
+
+		function createPollution(vw) {
+			var flipClass = vw.hasClass("flip") ? " " : " flip";
+			$("#container").append("<div class='pollution" + flipClass + "'></div>");
+			var pollution = $("#container .pollution:last-of-type");
+
+			var top = vw.css("top");
+			top = Number(top.substring(0, top.length - 2));
+			top += vw.height() / 2;
+
+			var left = vw.css("left");
+			left = Number(left.substring(0, left.length - 2));
+			left += vw.hasClass("ltr") ? -pollution.width() : vw.width();
+
+			pollution.css("top", top + "px");
+			pollution.css("left", left + "px");
+			return pollution;
+		}
+
+		function movePollution(pollution, pollutionInterval) {
+
+			var moveStepSize = 2;
+
+			var top = pollution.css("top");
+			top = Number(top.substring(0, top.length - 2));
+
+			if (top < 0) {
+				pollution.remove();
+				clearInterval(pollutionInterval);
+				return;
+			}
+
+			var left = pollution.css("left");
+			left = Number(left.substring(0, left.length - 2));
+			left += makeRandomDecision() ? moveStepSize : - moveStepSize;
+
+			if (left > $(window).width() - pollution.width()
+				|| left < 0) {
+				pollution.remove();
+				clearInterval(pollutionInterval);
+				return;
+			}
+
+			pollution.css("top", (top - moveStepSize) + "px");
+			pollution.css("left", left + "px");
+
+			// has it hit Drayson
+			if (hasPollutionHitDrayson(left, top)) {
+				pollution.remove();
+				clearInterval(pollutionInterval);
+				damageDrayson();
+			}
+		}
+
+		function hasPollutionHitDrayson(pollutionLeft, pollutionTop) {
+			var draysonLeft = theLord.css("left");
+			draysonLeft = Number(draysonLeft.substring(0, draysonLeft.length - 2));
+
+			var draysonTop = theLord.css("top");
+			draysonTop = Number(draysonTop.substring(0, draysonTop.length - 2));
+
+			if (pollutionLeft >= draysonLeft
+				&& pollutionLeft <= draysonLeft + theLord.width()
+				&& pollutionTop >= draysonTop
+				&& pollutionTop <= draysonTop + theLord.height()) {
+
+				return true;
+			}
+
+			return false;
+		}
+
+		function releasePollution(vw) {
+			var pollution = createPollution(vw);
+
+			var pollutionInterval = setInterval(function () {
+				movePollution(pollution, pollutionInterval);
+			}, 20);
+		}
+
+
+		/*********************/
+
+		function moveMap() {
+
+			document.elementFromPoint($(window).width() / 2, $(window).height() / 2).click();
+			var interval = setInterval(function () {
+				addUserControls(theLord);
+				theLord.trigger("click");
+				clearInterval(interval);
+			}, 300);
+
+		}
+
+		/*********************/
+
+		function gameOver() {
+			endOfGame()
+			$("#container").append("<div id='game-over'>GAME OVER</div>");
+			new Audio('audio/gameOver.mp3').play();
+		}
+
+		function gameWon() {
+			endOfGame()
+			$("#container").append("<div id='game-won'></div>");
+			$("#container").append("<div id='won-text'>YOU WIN</div>");
+			new Audio('audio/gameWon.mp3').play();
+		}
+
+		function endOfGame() {
+			$(window).off("keydown");
+			planeAudio.pause();
+			clearInterval(vwInterval);
+			audio.pause();
+			vwAudio.pause();
+			$("#container").append("<a id='replay' href=''>Replay</a>");
+		}
+
+
+		var audioStarted = false;
+		function startAudio() {
+			if (!audioStarted) {
+				audioStarted = true;
+				audio.play();
+			}
+		}
+
+		/*********************/
+		$(document).ready(function () {
+
+			sizeMap();
+			//initMap();
+			for (var i = 0; i < numPigeons; i++) {
+				pigeons.push(initPigeon());
+			}
+
+			for (var i = 0; i < numEvilPigeons; i++) {
+				var evilPigeon = initPigeon();
+				makeEvil(evilPigeon);
+				pigeons.push(evilPigeon);
+			}
+
+			theLord = initDrayson();
+
+			// play music
+			audio = new Audio('audio/backgroundMusic.mp3');
+			audio.loop = true;
+
+			// init VW
+			vwInterval = setInterval(function () {
+				initVW();
+			}, 5000);
+
+			$(window).on('resize', sizeMap);
+		});
+
+
+		/*
+			Ideas:
+				a) Evil pigeons fire plume snesors that knock out CleanSpace air pollution + Lord Drayson
+				b) Pigeons turn evil if:
+						i) Lord Drayson crashes into the Pigeon
+						ii) Mutley touches the pigeon
+
+				c) add audio in from Wacky races
+				d) Addin in moving of Gmaps with the mouse moving
+					i) Add in zoom in and out 'i', 'o'
+
+
+
+				Plume are using 10 pigeons
+
+
+				TODO :
+				1) replace all window.width(), window.height() calls with variable call that gets updated when window is resized
+
+
+
+
+		*/
+	</script>
+</body>
+
+</html>
